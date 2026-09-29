@@ -1,23 +1,33 @@
 import Link from 'next/link';
-import { Camera, ShieldCheck, Map } from 'lucide-react';
+import { Camera, ClipboardList, Home, Map, ShieldCheck } from 'lucide-react';
+
+const items = [
+  { href: '/', label: 'Dashboard', icon: Home },
+  { href: '/camara', label: 'Cámara', icon: Camera },
+  { href: '/inventario', label: 'Inventario', icon: ClipboardList },
+  { href: '/qr-supervision', label: 'QR', icon: ShieldCheck },
+  { href: '/mapa-taller', label: 'Mapa', icon: Map },
+];
 
 export default function Navbar() {
   return (
-    <nav className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-50">
-      <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-        <span className="font-bold font-mono text-lg text-blue-400">
+    <nav className="sticky top-0 z-50 border-b border-slate-800 bg-slate-900 text-white shadow-md">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <Link href="/" className="font-mono text-lg font-bold tracking-wider text-blue-400">
           SISTEMA NGR - AUX
-        </span>
-        <div className="flex gap-4 text-sm font-medium">
-          <Link href="/camara" className="flex items-center gap-1 hover:text-blue-400 transition-colors">
-            <Camera className="w-4 h-4" /> Fotos ZIP
-          </Link>
-          <Link href="/qr-supervision" className="flex items-center gap-1 hover:text-blue-400 transition-colors">
-            <ShieldCheck className="w-4 h-4" /> Alertas QR
-          </Link>
-          <Link href="/mapa-taller" className="flex items-center gap-1 hover:text-blue-400 transition-colors">
-            <Map className="w-4 h-4" /> Mapa Taller
-          </Link>
+        </Link>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm font-medium">
+          {items.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-3 py-2 transition hover:border-blue-500 hover:text-blue-300"
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </Link>
+          ))}
         </div>
       </div>
     </nav>

@@ -1,69 +1,132 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { ArrowRight, Camera, ClipboardList, MapPinned, QrCode } from 'lucide-react';
+import type { Tractocamion } from '@/types/operacion';
 
-export default function Home() {
+const unidades: Tractocamion[] = [
+  {
+    id: 'UT-01',
+    unidad: 'ECO-402',
+    economico: 'ECO-402',
+    planta: 'Mecánica',
+    etapa: 'Proceso',
+    estado: 'Activo',
+    ultimaActualizacion: 'Hace 22 min',
+    responsable: 'R. Velazquez',
+  },
+  {
+    id: 'UT-02',
+    unidad: 'ECO-821',
+    economico: 'ECO-821',
+    planta: 'Laminado',
+    etapa: 'Ingreso',
+    estado: 'Pendiente',
+    ultimaActualizacion: 'Hace 1 h',
+    responsable: 'A. García',
+  },
+  {
+    id: 'UT-03',
+    unidad: 'ECO-118',
+    economico: 'ECO-118',
+    planta: 'Pintura',
+    etapa: 'Terminado',
+    estado: 'En taller',
+    ultimaActualizacion: 'Hace 3 h',
+    responsable: 'J. Torres',
+  },
+];
+
+const modulos = [
+  {
+    href: '/camara',
+    title: 'Captura fotográfica',
+    description: 'Ingreso, proceso y terminado con compresión optimizada.',
+    icon: Camera,
+    accent: 'text-blue-600 bg-blue-50',
+  },
+  {
+    href: '/inventario',
+    title: 'Inventario de ingreso',
+    description: 'Checklist digital y daños por unidad.',
+    icon: ClipboardList,
+    accent: 'text-amber-600 bg-amber-50',
+  },
+  {
+    href: '/qr-supervision',
+    title: 'QR y gato digital',
+    description: 'Retiros pendientes, alertas y seguimiento documental.',
+    icon: QrCode,
+    accent: 'text-violet-600 bg-violet-50',
+  },
+  {
+    href: '/mapa-taller',
+    title: 'Mapa de talleres',
+    description: 'Plano 2D con racks, ubicaciones y tareas pendientes.',
+    icon: MapPinned,
+    accent: 'text-emerald-600 bg-emerald-50',
+  },
+];
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="mx-auto max-w-7xl space-y-8 p-6">
+      <header className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 p-8 text-white shadow-xl">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-200">Residencias profesionales</p>
+            <h1 className="mt-3 text-4xl font-black tracking-tight">Sistema integral de gestión documental y fotográfica</h1>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-slate-200">
+            Expedientes activos: <span className="text-xl font-bold text-white">24</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </header>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {modulos.map(({ href, title, description, icon: Icon, accent }) => (
+          <Link key={href} href={href} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <div className={`inline-flex rounded-xl p-3 ${accent}`}>
+              <Icon className="h-6 w-6" />
+            </div>
+            <h2 className="mt-4 text-lg font-bold text-slate-900">{title}</h2>
+            <p className="mt-2 text-sm text-slate-600">{description}</p>
+            <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+              Entrar <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-bold text-slate-900">Expedientes activos</h2>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+            En curso
+          </span>
         </div>
-      </main>
+
+        <div className="space-y-3">
+          {unidades.map((unidad) => (
+            <div key={unidad.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-lg font-bold text-blue-700">{unidad.unidad}</span>
+                  <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-700">
+                    {unidad.etapa}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  {unidad.planta} • Responsable: {unidad.responsable}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">{unidad.estado}</span>
+                <span>Actualizado {unidad.ultimaActualizacion}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
