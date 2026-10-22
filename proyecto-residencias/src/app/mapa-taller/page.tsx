@@ -1,113 +1,203 @@
 'use client';
 
-import { Factory, MapPinned, PackageCheck, Wrench } from 'lucide-react';
+import { useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight, DoorOpen, GripVertical, Loader2, MapPinned, MoveRight, QrCode, Truck } from 'lucide-react';
+import { getEtiquetasQR, getUnidades, moverEtiquetaQR } from '@/services/api';
+import { mensajeDeError, useAviso, useDatos } from '@/lib/hooks';
+import { ESTADOS_SALIDA, TALLERES, claseEstadoUnidad } from '@/lib/constantes';
+import type { EtiquetaQRConUnidad } from '@/types/supabase';
+import {
+  Aviso,
+  AvisoConfiguracion,
+  Cargando,
+  Encabezado,
+  ErrorCarga,
+  Insignia,
+  Pagina,
+  Tarjeta,
+  claseInput,
+} from '@/components/ui';
 
-const racks = [
-  { id: 'Rack A1', area: 'Mecánica', x: '8%', y: '12%', status: 'Activo' },
-  { id: 'Rack B2', area: 'Laminado', x: '38%', y: '38%', status: 'Pendiente' },
-  { id: 'Rack C3', area: 'Pintura', x: '66%', y: '22%', status: 'Activo' },
-  { id: 'Rack D4', area: 'Almacén', x: '58%', y: '68%', status: 'Revision' },
-];
+// Posición de cada área en el plano (cuadrícula de 6x4 en escritorio).
+const DISTRIBUCION: Record<string, string> = {
+  Recepción: 'md:col-start-1 md:row-start-1 md:col-span-2 md:row-span-1',
+  Mecánica: 'md:col-start-1 md:row-start-2 md:col-span-2 md:row-span-3',
+  Laminado: 'md:col-start-3 md:row-start-1 md:col-span-2 md:row-span-2',
+  Almacén: 'md:col-start-3 md:row-start-3 md:col-span-2 md:row-span-2',
+  Pintura: 'md:col-start-5 md:row-start-1 md:col-span-2 md:row-span-3',
+};
 
 export default function MapaTallerPage() {
+  const aviso = useAviso();
+  const [seleccion, setSeleccion] = useState<string | null>(null);
+  const [destino, setDestino] = useState({ taller: '', rack: '' });
+  const [moviendo, setMoviendo] = useState(false);
+  const [sobreArea, setSobreArea] = useState<string | null>(null);
+
+  const datos = useDatos(() => Promise.all([getEtiquetasQR(), getUnidades()]));
+  const [etiquetas, unidades] = datos.datos ?? [[], []];
+
+  const colocadas = etiquetas.filter((q) => q.estado === 'Colocada');
+  const conUbicacion = new Set(colocadas.map((q) => q.unidad_id));
+  const sinUbicar = unidades.filter((u) => u.estado_unidad !== 'Entregada' && !conUbicacion.has(u.id));
+  const elegida = colocadas.find((q) => q.id === seleccion) ?? null;
+
+  const seleccionar = (q: EtiquetaQRConUnidad) => {
+    setSeleccion(q.id);
+    setDestino({ taller: q.taller, rack: q.ubicacion_rack ?? '' });
+  };
+
+  const mover = async (q: EtiquetaQRConUnidad, taller: string, rack: string | null) => {
+    if (q.taller === taller && (q.ubicacion_rack ?? '') === (rack ?? '')) return;
+    setMoviendo(true);
+    try {
+      const actualizada = await moverEtiquetaQR(q.id, taller, rack);
+      datos.setDatos([etiquetas.map((x) => (x.id === q.id ? { ...x, ...actualizada } : x)), unidades]);
+      aviso.exito(`${q.unidades?.unidad_eco ?? q.codigo_qr} movida a ${taller}${rack ? ` / ${rack}` : ''}.`);
+      setDestino({ taller, rack: rack ?? '' });
+    } catch (err) {
+      aviso.error(mensajeDeError(err));
+    } finally {
+      setMoviendo(false);
+    }
+  };
+
+  const soltar = (taller: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    setSobreArea(null);
+    const q = colocadas.find((x) => x.id === e.dataTransfer.getData('text/plain'));
+    if (q) mover(q, taller, q.taller === taller ? q.ubicacion_rack : null);
+  };
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-600">Mapa de taller</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Plano 2D de áreas y ubicaciones</h1>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl bg-violet-50 p-3 text-violet-700">
-          <MapPinned className="h-7 w-7" />
-          <span className="text-sm font-semibold">4 racks activos</span>
-        </div>
-      </div>
+    <Pagina>
+      <Encabezado
+        icono={MapPinned}
+        seccion="Patio"
+        titulo="Mapa del taller"
+        descripcion="Ubicación de cada unidad según su etiqueta QR colocada. Arrastra una unidad a otra área para moverla."
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">
-        <div className="relative min-h-[520px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(148,163,184,0.12),_rgba(255,255,255,0)_60%)]" />
+      <AvisoConfiguracion />
+      {datos.error && <ErrorCarga mensaje={datos.error} reintentar={datos.recargar} />}
 
-          <div className="relative h-full w-full rounded-2xl border border-slate-200 bg-slate-50">
-            <div className="absolute left-6 top-6 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">
-              Recepción
-            </div>
-            <div className="absolute left-1/2 top-1/3 h-28 w-40 -translate-x-1/2 rounded-2xl border-2 border-slate-300 bg-slate-200/80 p-3 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm font-semibold text-slate-700">
-                <Factory className="h-4 w-4" />
-                Taller principal
-              </div>
-            </div>
-
-            <div className="absolute left-6 top-1/2 h-28 w-32 rounded-2xl border-2 border-amber-300 bg-amber-100/80 p-3 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm font-semibold text-amber-700">
-                <Wrench className="h-4 w-4" />
-                Mecánica
-              </div>
-            </div>
-
-            <div className="absolute right-6 top-1/3 h-32 w-36 rounded-2xl border-2 border-emerald-300 bg-emerald-100/80 p-3 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm font-semibold text-emerald-700">
-                <PackageCheck className="h-4 w-4" />
-                Pintura
-              </div>
-            </div>
-
-            <div className="absolute bottom-6 left-1/3 h-28 w-36 rounded-2xl border-2 border-violet-300 bg-violet-100/80 p-3 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm font-semibold text-violet-700">
-                <MapPinned className="h-4 w-4" />
-                Laminado
-              </div>
-            </div>
-
-            {racks.map((rack) => (
-              <div
-                key={rack.id}
-                className="absolute flex h-14 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl border border-slate-300 bg-white text-center text-[10px] font-bold shadow-sm"
-                style={{ left: rack.x, top: rack.y }}
-              >
-                <div>
-                  <div>{rack.id}</div>
-                  <div className="text-[8px] text-slate-500">{rack.status}</div>
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+        <Tarjeta sinPadding className="overflow-hidden">
+          {datos.cargando ? (
+            <Cargando texto="Cargando plano…" />
+          ) : (
+            <div className="fondo-plano p-4 sm:p-6">
+              <div className="grid grid-cols-1 gap-3 md:min-h-[560px] md:grid-cols-6 md:grid-rows-4">
+                {TALLERES.map((area) => {
+                  const enArea = colocadas.filter((q) => q.taller === area.nombre);
+                  const racks = [...new Set(enArea.map((q) => q.ubicacion_rack ?? 'Piso'))].sort();
+                  return (
+                    <div
+                      key={area.nombre}
+                      onDragOver={(e) => { e.preventDefault(); setSobreArea(area.nombre); }}
+                      onDragLeave={() => setSobreArea(null)}
+                      onDrop={soltar(area.nombre)}
+                      className={`flex flex-col rounded-2xl border-2 border-dashed p-3 transition ${area.clase} ${area.borde} ${DISTRIBUCION[area.nombre] ?? ''} ${sobreArea === area.nombre ? 'scale-[1.01] border-solid shadow-lg' : ''}`}
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-sm font-black uppercase tracking-wider">{area.nombre}</p>
+                        <span className="rounded-full bg-white/80 px-2 text-xs font-bold tabular-nums">{enArea.length}</span>
+                      </div>
+                      {enArea.length === 0 ? (
+                        <p className="m-auto py-4 text-xs opacity-50">Sin unidades</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {racks.map((rack) => (
+                            <div key={rack}>
+                              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest opacity-60">{rack}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {enArea.filter((q) => (q.ubicacion_rack ?? 'Piso') === rack).map((q) => {
+                                  const salida = q.unidades && ESTADOS_SALIDA.includes(q.unidades.estado_unidad);
+                                  return (
+                                    <button
+                                      key={q.id}
+                                      draggable
+                                      onDragStart={(e) => e.dataTransfer.setData('text/plain', q.id)}
+                                      onClick={() => seleccionar(q)}
+                                      className={`flex cursor-grab items-center gap-1 rounded-lg bg-white px-2 py-1 font-mono text-xs font-bold text-slate-800 shadow-sm ring-1 transition active:cursor-grabbing ${
+                                        seleccion === q.id ? 'ring-2 ring-slate-900' : salida ? 'ring-red-400' : 'ring-slate-200 hover:ring-slate-400'
+                                      }`}
+                                    >
+                                      <GripVertical className="hidden h-3 w-3 text-slate-300 md:block" />
+                                      <Truck className={`h-3.5 w-3.5 ${salida ? 'text-red-500' : 'text-amber-600'}`} />
+                                      {q.unidades?.unidad_eco ?? q.codigo_qr}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="hidden items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-bold uppercase tracking-widest text-amber-400 md:col-span-2 md:col-start-5 md:row-start-4 md:flex">
+                  <DoorOpen className="h-5 w-5" /> Salida
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">Estado operativo</h2>
-            <ul className="mt-4 space-y-3 text-sm text-slate-600">
-              <li className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-                <span>Alertas activas</span>
-                <strong className="text-red-600">04</strong>
-              </li>
-              <li className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-                <span>QR pendientes</span>
-                <strong className="text-amber-600">07</strong>
-              </li>
-              <li className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-                <span>Unidades en rack</span>
-                <strong className="text-emerald-600">12</strong>
-              </li>
-            </ul>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">Retiros programados</h2>
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="font-semibold text-slate-800">ECO-402</div>
-                <div>Retiro QR del rack B2</div>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="font-semibold text-slate-800">ECO-821</div>
-                <div>Asignación final en Pintura</div>
-              </div>
             </div>
-          </div>
+          )}
+        </Tarjeta>
+
+        <div className="space-y-6">
+          <Tarjeta titulo="Unidad seleccionada" icono={Truck}>
+            {!elegida ? (
+              <p className="text-sm text-slate-500">Toca una unidad del plano para ver su detalle o moverla.</p>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xl font-black">{elegida.unidades?.unidad_eco}</span>
+                    {elegida.unidades && <Insignia clase={claseEstadoUnidad(elegida.unidades.estado_unidad)}>{elegida.unidades.estado_unidad}</Insignia>}
+                  </div>
+                  <p className="mt-1 flex items-center gap-1 font-mono text-xs text-slate-500">
+                    <QrCode className="h-3.5 w-3.5" /> {elegida.codigo_qr}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={destino.taller} onChange={(e) => setDestino({ ...destino, taller: e.target.value })} className={claseInput}>
+                    {TALLERES.map((t) => <option key={t.nombre}>{t.nombre}</option>)}
+                  </select>
+                  <input value={destino.rack} onChange={(e) => setDestino({ ...destino, rack: e.target.value.toUpperCase() })} placeholder="Rack" className={claseInput} />
+                </div>
+                <button onClick={() => mover(elegida, destino.taller, destino.rack.trim() || null)} disabled={moviendo} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
+                  {moviendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoveRight className="h-4 w-4" />}
+                  Mover unidad
+                </button>
+                {elegida.unidades && (
+                  <Link href={`/unidades/${elegida.unidades.id}`} className="flex items-center justify-center gap-1 text-sm font-semibold text-amber-600 hover:underline">
+                    Abrir expediente <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
+              </div>
+            )}
+          </Tarjeta>
+
+          <Tarjeta titulo={`Sin ubicar (${sinUbicar.length})`} icono={MapPinned}>
+            {sinUbicar.length === 0 ? (
+              <p className="text-sm text-slate-500">Todas las unidades activas tienen QR colocado.</p>
+            ) : (
+              <ul className="space-y-2">
+                {sinUbicar.slice(0, 8).map((u) => (
+                  <li key={u.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="font-mono font-bold">{u.unidad_eco}</span>
+                    <Link href={`/qr-supervision?unidad=${u.id}`} className="text-xs font-semibold text-amber-600 hover:underline">Asignar QR</Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Tarjeta>
         </div>
       </div>
-    </div>
+
+      <Aviso aviso={aviso.aviso} cerrar={aviso.cerrar} />
+    </Pagina>
   );
 }

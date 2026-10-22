@@ -1,13 +1,18 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar"; // IMPORTANTE: sin llaves {}
+import Navbar from "@/components/Navbar"; // IMPORTANTE: export default, sin llaves {}
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  title: "Sistema NGR Auxiliar",
-  description: "Sistema para captura, QR y mapeo de taller",
+  title: { default: "NGR Taller", template: "%s · NGR Taller" },
+  description: "Expediente digital de tractocamiones: fotografías, inventario de ingreso, etiquetas QR y mapa del taller.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
@@ -16,12 +21,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body className={`${inter.className} bg-slate-50 min-h-screen`}>
+    <html lang="es" className={`${inter.variable} ${jetbrains.variable}`}>
+      <body className="min-h-screen font-sans antialiased">
         <Navbar />
-        <main className="pb-10">
-          {children}
-        </main>
+        {/* pb-24 deja espacio para la barra inferior en celular */}
+        <main className="pb-24 md:pb-10">{children}</main>
       </body>
     </html>
   );

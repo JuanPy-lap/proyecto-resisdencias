@@ -2,7 +2,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['169.254.83.107', 'localhost:3000'],
+  // Permite abrir el servidor de desarrollo desde un celular en la red local.
+  // Si cambia la IP de tu equipo (ipconfig), agrégala aquí.
+  allowedDevOrigins: ['192.168.1.88', '169.254.83.107', 'localhost:3000'],
+  images: {
+    // Fotos públicas del bucket de Supabase Storage (next/image).
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.supabase.co', pathname: '/storage/v1/object/public/**' },
+    ],
+  },
 };
 
 export default nextConfig;
