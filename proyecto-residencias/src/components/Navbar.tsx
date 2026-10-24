@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Camera, ClipboardList, Home, LogOut, Map, QrCode, Truck } from 'lucide-react';
+import { Camera, Home, LogOut, Map, QrCode, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useUsuario } from '@/lib/hooks';
 
+// El inventario no va en el menú: se llena desde la fase de Ingreso de cada unidad.
 const items = [
   { href: '/', label: 'Inicio', icon: Home },
   { href: '/unidades', label: 'Unidades', icon: Truck },
-  { href: '/camara', label: 'Cámara', icon: Camera },
-  { href: '/inventario', label: 'Inventario', icon: ClipboardList },
+  { href: '/fotos', label: 'Fotos', icon: Camera },
   { href: '/qr-supervision', label: 'QR', icon: QrCode },
   { href: '/mapa-taller', label: 'Mapa', icon: Map },
 ];
@@ -84,7 +84,7 @@ export default function Navbar() {
 
       {/* Barra inferior para celular: los operadores capturan desde el patio */}
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-5">
           {items.map(({ href, label, icon: Icon }) => {
             const activo = esActivo(pathname, href);
             return (

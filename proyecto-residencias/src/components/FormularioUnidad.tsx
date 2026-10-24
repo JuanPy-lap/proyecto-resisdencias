@@ -20,7 +20,7 @@ export default function FormularioUnidad({ cerrar, alCrear }: { cerrar: () => vo
 
   const guardar = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!form.unidad_eco?.trim()) return setError('El número económico es obligatorio.');
+    if (!form.unidad_eco?.trim()) return setError('El número de cono es obligatorio.');
     setGuardando(true);
     setError(null);
     try {
@@ -51,8 +51,8 @@ export default function FormularioUnidad({ cerrar, alCrear }: { cerrar: () => vo
         </div>
 
         <div className="grid gap-4 p-6 sm:grid-cols-2">
-          <Campo etiqueta="No. económico *">
-            <input autoFocus required value={form.unidad_eco} onChange={(e) => setForm((f) => ({ ...f, unidad_eco: e.target.value }))} placeholder="ECO-402" className={`${claseInput} font-mono uppercase`} />
+          <Campo etiqueta="No. de cono *">
+            <input autoFocus required value={form.unidad_eco} onChange={(e) => setForm((f) => ({ ...f, unidad_eco: e.target.value }))} placeholder="C-2499" className={`${claseInput} font-mono uppercase`} />
           </Campo>
           <Campo etiqueta="VIN / No. de serie">
             <input value={form.vin ?? ''} onChange={cambiar('vin')} maxLength={17} placeholder="17 caracteres" className={`${claseInput} font-mono uppercase`} />

@@ -62,7 +62,7 @@ function ListaUnidades() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative lg:w-80">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar económico, VIN, cliente…" className={`${claseInput} pl-10`} />
+          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cono, VIN, cliente…" className={`${claseInput} pl-10`} />
         </div>
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
           <button
@@ -113,7 +113,7 @@ function ListaUnidades() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {visibles.map((u) => {
-                    const vencida = u.fecha_compromiso && !['Liberada', 'Entregada'].includes(u.estado_unidad) && diasDesde(u.fecha_compromiso) > 0;
+                    const vencida = u.fecha_compromiso && u.estado_unidad !== 'Entrega' && diasDesde(u.fecha_compromiso) > 0;
                     return (
                       <tr key={u.id} onClick={() => router.push(`/unidades/${u.id}`)} className="cursor-pointer transition hover:bg-slate-50">
                         <td className="px-5 py-3.5">

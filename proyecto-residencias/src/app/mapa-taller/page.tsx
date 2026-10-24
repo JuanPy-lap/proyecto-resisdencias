@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowRight, DoorOpen, GripVertical, Loader2, MapPinned, MoveRight, QrCode, Truck } from 'lucide-react';
 import { getEtiquetasQR, getUnidades, moverEtiquetaQR } from '@/services/api';
 import { mensajeDeError, useAviso, useDatos } from '@/lib/hooks';
-import { ESTADOS_SALIDA, TALLERES, claseEstadoUnidad } from '@/lib/constantes';
+import { ESTADOS_SALIDA, TALLERES, claseEstadoUnidad, situacionRetiro } from '@/lib/constantes';
 import type { EtiquetaQRConUnidad } from '@/types/supabase';
 import {
   Aviso,
@@ -40,7 +40,7 @@ export default function MapaTallerPage() {
 
   const colocadas = etiquetas.filter((q) => q.estado === 'Colocada');
   const conUbicacion = new Set(colocadas.map((q) => q.unidad_id));
-  const sinUbicar = unidades.filter((u) => u.estado_unidad !== 'Entregada' && !conUbicacion.has(u.id));
+  const sinUbicar = unidades.filter((u) => u.estado_unidad !== 'Entrega' && !conUbicacion.has(u.id));
   const elegida = colocadas.find((q) => q.id === seleccion) ?? null;
 
   const seleccionar = (q: EtiquetaQRConUnidad) => {
@@ -113,7 +113,10 @@ export default function MapaTallerPage() {
                               <p className="mb-1 text-[10px] font-bold uppercase tracking-widest opacity-60">{rack}</p>
                               <div className="flex flex-wrap gap-1.5">
                                 {enArea.filter((q) => (q.ubicacion_rack ?? 'Piso') === rack).map((q) => {
-                                  const salida = q.unidades && ESTADOS_SALIDA.includes(q.unidades.estado_unidad);
+                                  // En rojo: unidad de salida o QR con retiro vencido / para hoy.
+                                  const tipoRetiro = situacionRetiro(q)?.tipo;
+                                  const salida =
+                                    (q.unidades && ESTADOS_SALIDA.includes(q.unidades.estado_unidad)) || tipoRetiro === 'vencido' || tipoRetiro === 'hoy';
                                   return (
                                     <button
                                       key={q.id}

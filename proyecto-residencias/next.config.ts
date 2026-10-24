@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.supabase.co', pathname: '/storage/v1/object/public/**' },
     ],
   },
+  // El módulo de cámara ahora se llama Fotos; los enlaces viejos siguen funcionando.
+  async redirects() {
+    return [{ source: '/camara', destination: '/fotos', permanent: true }];
+  },
 };
 
 export default nextConfig;

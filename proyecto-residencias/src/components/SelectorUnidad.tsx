@@ -15,7 +15,7 @@ export default function SelectorUnidad({
   cambiar: (id: string) => void;
   incluirEntregadas?: boolean;
 }) {
-  const visibles = incluirEntregadas ? unidades : unidades.filter((u) => u.estado_unidad !== 'Entregada' || u.id === valor);
+  const visibles = incluirEntregadas ? unidades : unidades.filter((u) => u.estado_unidad !== 'Entrega' || u.id === valor);
   return (
     <select value={valor} onChange={(e) => cambiar(e.target.value)} className={`${claseInput} font-mono`}>
       <option value="">— Selecciona una unidad —</option>

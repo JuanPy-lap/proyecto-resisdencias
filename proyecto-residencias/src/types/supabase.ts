@@ -17,13 +17,8 @@
 // Enums de dominio (reflejan los CHECK constraints de la BD)
 // ---------------------------------------------------------------------------
 
-export type EstadoUnidad =
-  | 'Ingreso'
-  | 'En Diagnóstico'
-  | 'En Proceso'
-  | 'Control de Calidad'
-  | 'Liberada'
-  | 'Entregada';
+/** Fases del taller, en orden. Solo avanzan (lo valida un trigger en la BD). */
+export type EstadoUnidad = 'Ingreso' | 'Espera de Liberación' | 'Proceso' | 'Control de Calidad' | 'Entrega';
 
 export type VistaDiagrama = 'frontal' | 'lateral_izquierdo' | 'lateral_derecho' | 'trasera' | 'superior';
 
@@ -67,17 +62,58 @@ export type UnidadInsert = {
 export type UnidadUpdate = Partial<UnidadInsert>;
 
 // ---------------------------------------------------------------------------
+// historial_estados (lo llena el trigger de la BD; solo lectura desde la app)
+// ---------------------------------------------------------------------------
+
+export type HistorialEstado = {
+  id: string;
+  unidad_id: string;
+  estado: EstadoUnidad;
+  registrado_por: string;
+  created_at: string;
+};
+
+// ---------------------------------------------------------------------------
 // 2. inventarios_ingreso
 // ---------------------------------------------------------------------------
+
+/** Estado de una parte en la hoja: Bueno / Regular / Malo. */
+export type EstadoParte = 'B' | 'R' | 'M';
+
+/** Renglón de "Partes y accesorios": Cant + estado, o Sí/No en el grupo OTROS. */
+export type ParteInventario = { cant?: number | null; estado?: EstadoParte | null; si?: boolean | null };
+
+/** Encabezado de la hoja (franja amarilla y renglones de arriba). */
+export type DatosHoja = {
+  cliente?: string;
+  tarjeta_iave?: string;
+  cia?: string;
+  marca?: string;
+  tipo?: string;
+  modelo?: string;
+  placas?: string;
+  color?: string;
+  numero_motor?: string;
+  numero_serie?: string;
+  llantas?: string;
+};
 
 export type InventarioIngreso = {
   id: string;
   unidad_id: string;
   kilometraje: number;
-  nivel_combustible: number; // 0-100 (%)
+  /** Tanque LH, 0-100 (%) */
+  nivel_combustible: number;
+  /** Tanque RH, 0-100 (%) */
+  nivel_combustible_rh: number | null;
   tiene_gato_hidraulico: boolean;
   tiene_extintor: boolean;
   tiene_llanta_refaccion: boolean;
+  datos_hoja: DatosHoja;
+  /** Partes y accesorios: clave de ITEMS_HOJA (src/lib/hojaInventario.ts) → renglón. */
+  checklist: Record<string, ParteInventario>;
+  observaciones: string | null;
+  supervisor: string | null;
   observaciones_mecanicas: string | null;
   observaciones_carroceria: string | null;
   firma_operador_url: string | null;
@@ -85,8 +121,18 @@ export type InventarioIngreso = {
   created_at: string;
 };
 
-export type InventarioIngresoInsert = Omit<InventarioIngreso, 'id' | 'created_at' | 'firma_operador_url'> & {
+export type InventarioIngresoInsert = Omit<
+  InventarioIngreso,
+  'id' | 'created_at' | 'firma_operador_url' | 'checklist' | 'datos_hoja' | 'nivel_combustible_rh' | 'observaciones' | 'supervisor' | 'observaciones_mecanicas' | 'observaciones_carroceria'
+> & {
   id?: string;
+  checklist?: Record<string, ParteInventario>;
+  datos_hoja?: DatosHoja;
+  nivel_combustible_rh?: number | null;
+  observaciones?: string | null;
+  supervisor?: string | null;
+  observaciones_mecanicas?: string | null;
+  observaciones_carroceria?: string | null;
   firma_operador_url?: string | null;
 };
 export type InventarioIngresoUpdate = Partial<InventarioIngresoInsert>;
@@ -106,7 +152,11 @@ export type DanoDiagrama = {
   created_at: string;
 };
 
-export type DanoDiagramaInsert = Omit<DanoDiagrama, 'id' | 'created_at'> & { id?: string };
+export type DanoDiagramaInsert = Omit<DanoDiagrama, 'id' | 'created_at' | 'tipo_dano' | 'descripcion'> & {
+  id?: string;
+  tipo_dano?: TipoDano;
+  descripcion?: string | null;
+};
 export type DanoDiagramaUpdate = Partial<DanoDiagramaInsert>;
 
 // ---------------------------------------------------------------------------
@@ -140,6 +190,8 @@ export type EtiquetaQRRastreo = {
   ubicacion_rack: string | null;
   estado: EstadoQR;
   fecha_colocacion: string | null;
+  /** Fecha en que se debe retirar (por defecto, la fecha compromiso de la unidad). */
+  fecha_retiro_programada: string | null; // ISO date
   fecha_retiro: string | null;
   retirado_por: string | null;
   created_at: string;
@@ -147,11 +199,10 @@ export type EtiquetaQRRastreo = {
 
 export type EtiquetaQRRastreoInsert = Omit<
   EtiquetaQRRastreo,
-  'id' | 'created_at' | 'estado' | 'fecha_colocacion' | 'fecha_retiro' | 'retirado_por'
+  'id' | 'created_at' | 'estado' | 'fecha_retiro' | 'retirado_por'
 > & {
   id?: string;
   estado?: EstadoQR;
-  fecha_colocacion?: string | null;
   fecha_retiro?: string | null;
   retirado_por?: string | null;
 };
@@ -164,7 +215,7 @@ export type EtiquetaQRRastreoUpdate = Partial<EtiquetaQRRastreoInsert>;
 export type InventarioConDanos = InventarioIngreso & { danos_diagrama: DanoDiagrama[] };
 
 export type EtiquetaQRConUnidad = EtiquetaQRRastreo & {
-  unidades: Pick<Unidad, 'id' | 'unidad_eco' | 'estado_unidad'> | null;
+  unidades: Pick<Unidad, 'id' | 'unidad_eco' | 'estado_unidad' | 'fecha_compromiso'> | null;
 };
 
 export type FotografiaConUnidad = FotografiaUnidad & {
@@ -191,6 +242,12 @@ export type Database = {
         Insert: UnidadInsert;
         Update: UnidadUpdate;
         Relationships: [];
+      };
+      historial_estados: {
+        Row: HistorialEstado;
+        Insert: Omit<HistorialEstado, 'id' | 'created_at'>;
+        Update: Partial<Omit<HistorialEstado, 'id'>>;
+        Relationships: [RelacionConUnidad<'historial_estados_unidad_id_fkey'>];
       };
       inventarios_ingreso: {
         Row: InventarioIngreso;

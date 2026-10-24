@@ -16,8 +16,10 @@ import type {
   EtiquetaQRRastreoInsert,
   EtiquetaQRRastreoUpdate,
   EtiquetaQRConUnidad,
-  EstadoQR,
+  HistorialEstado,
 } from '@/types/supabase';
+import { siguienteEstado } from '@/lib/constantes';
+import { RESUMEN_VACIO, type ResumenUnidad } from '@/lib/fases';
 
 // =============================================================================
 // UNIDADES
@@ -65,22 +67,80 @@ export async function createUnidad(nuevaUnidad: UnidadInsert): Promise<Unidad> {
     console.error('[createUnidad] Error:', error.message);
     // 23505 = unique_violation (unidad_eco repetido)
     if (error.code === '23505') {
-      throw new Error(`Ya existe una unidad con el económico ${nuevaUnidad.unidad_eco.toUpperCase()}.`);
+      throw new Error(`Ya existe una unidad con el cono ${nuevaUnidad.unidad_eco.toUpperCase()}.`);
     }
     throw new Error(`No se pudo crear la unidad: ${error.message}`);
   }
   return data;
 }
 
-/** Actualiza datos de una unidad (estado, responsable, fecha compromiso...). */
+/** Actualiza datos de una unidad (responsable, fecha compromiso...). Para la fase usa avanzarFase(). */
 export async function actualizarUnidad(id: string, cambios: UnidadUpdate): Promise<Unidad> {
   const { data, error } = await supabase.from('unidades').update(cambios).eq('id', id).select().single();
 
   if (error) {
     console.error('[actualizarUnidad] Error:', error.message);
+    // P0001 = raise exception del trigger de fases: su mensaje ya está en español.
+    if (error.code === 'P0001') throw new Error(error.message);
     throw new Error(`No se pudo actualizar la unidad: ${error.message}`);
   }
   return data;
+}
+
+/**
+ * Pasa la unidad a la siguiente fase. Solo se avanza de una en una y nunca se
+ * regresa; además de esta validación, el trigger de la BD lo impide.
+ */
+export async function avanzarFase(unidad: Unidad): Promise<Unidad> {
+  const siguiente = siguienteEstado(unidad.estado_unidad);
+  if (!siguiente) throw new Error('La unidad ya fue entregada.');
+  return actualizarUnidad(unidad.id, { estado_unidad: siguiente });
+}
+
+/** Fechas en que se registró cada fase de la unidad (lo llena el trigger). */
+export async function getHistorialEstados(unidadId: string): Promise<HistorialEstado[]> {
+  const { data, error } = await supabase
+    .from('historial_estados')
+    .select('*')
+    .eq('unidad_id', unidadId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[getHistorialEstados] Error:', error.message);
+    throw new Error(`No se pudo cargar el historial de fases: ${error.message}`);
+  }
+  return data ?? [];
+}
+
+/**
+ * Conteo de inventarios, fotos por etapa y QR por unidad, para saber qué
+ * tarea le falta a cada una (dashboard). Trae solo columnas mínimas.
+ */
+export async function getResumenUnidades(): Promise<Map<string, ResumenUnidad>> {
+  const [fotos, inventarios, etiquetas] = await Promise.all([
+    supabase.from('fotografias_unidad').select('unidad_id, etapa'),
+    supabase.from('inventarios_ingreso').select('unidad_id'),
+    supabase.from('etiquetas_qr_rastreo').select('unidad_id, estado'),
+  ]);
+  const error = fotos.error ?? inventarios.error ?? etiquetas.error;
+  if (error) {
+    console.error('[getResumenUnidades] Error:', error.message);
+    throw new Error(`No se pudo calcular el avance de las unidades: ${error.message}`);
+  }
+
+  const resumen = new Map<string, ResumenUnidad>();
+  const de = (id: string) => {
+    if (!resumen.has(id)) resumen.set(id, structuredClone(RESUMEN_VACIO));
+    return resumen.get(id)!;
+  };
+  fotos.data?.forEach((f) => de(f.unidad_id).fotos[f.etapa]++);
+  inventarios.data?.forEach((i) => de(i.unidad_id).inventarios++);
+  etiquetas.data?.forEach((q) => {
+    const r = de(q.unidad_id);
+    r.qrTotal++;
+    if (q.estado === 'Colocada') r.qrColocados++;
+  });
+  return resumen;
 }
 
 // =============================================================================
@@ -322,7 +382,7 @@ export async function eliminarFotografia(foto: FotografiaUnidad): Promise<void> 
 // QR / RASTREO
 // =============================================================================
 
-const SELECT_QR_CON_UNIDAD = '*, unidades(id, unidad_eco, estado_unidad)';
+const SELECT_QR_CON_UNIDAD = '*, unidades(id, unidad_eco, estado_unidad, fecha_compromiso)';
 
 /** Todas las etiquetas QR con datos básicos de su unidad (opcionalmente de una sola unidad). */
 export async function getEtiquetasQR(unidadId?: string): Promise<EtiquetaQRConUnidad[]> {
@@ -354,7 +414,7 @@ export async function getAlertasQR(): Promise<EtiquetaQRConUnidad[]> {
     .from('etiquetas_qr_rastreo')
     .select(SELECT_QR_CON_UNIDAD)
     .neq('estado', 'Retirada')
-    .order('fecha_colocacion', { ascending: true })
+    .order('fecha_retiro_programada', { ascending: true, nullsFirst: false })
     .overrideTypes<EtiquetaQRConUnidad[], { merge: false }>();
 
   if (error) {
@@ -364,54 +424,53 @@ export async function getAlertasQR(): Promise<EtiquetaQRConUnidad[]> {
   return data ?? [];
 }
 
-/** Registra una etiqueta QR nueva para una unidad. Si se marca como colocada, fija la fecha. */
+/**
+ * Registra un QR ya colocado. El mismo cono puede tener varios QR (uno por
+ * taller); solo se rechaza repetir cono + taller mientras siga colocado.
+ */
 export async function crearEtiquetaQR(etiqueta: EtiquetaQRRastreoInsert): Promise<EtiquetaQRRastreo> {
-  const estado = etiqueta.estado ?? 'Pendiente';
+  const codigo = etiqueta.codigo_qr.trim().toUpperCase();
   const { data, error } = await supabase
     .from('etiquetas_qr_rastreo')
-    .insert({
-      ...etiqueta,
-      codigo_qr: etiqueta.codigo_qr.trim().toUpperCase(),
-      estado,
-      fecha_colocacion: estado === 'Colocada' ? new Date().toISOString() : null,
-    })
+    .insert({ ...etiqueta, codigo_qr: codigo, estado: 'Colocada' })
     .select()
     .single();
 
   if (error) {
     console.error('[crearEtiquetaQR] Error:', error.message);
+    // 23505 = índice único (cono + taller) de QR que siguen colocados
     if (error.code === '23505') {
-      throw new Error(`El código QR ${etiqueta.codigo_qr.toUpperCase()} ya está registrado.`);
+      throw new Error(`El cono ${codigo} ya tiene un QR colocado en ${etiqueta.taller}. Retíralo antes de colocar otro en ese taller.`);
     }
-    throw new Error(`No se pudo registrar la etiqueta QR: ${error.message}`);
+    throw new Error(`No se pudo registrar el QR: ${error.message}`);
   }
   return data;
 }
 
-/**
- * Cambia el estado de una etiqueta QR (p. ej. de 'Colocada' a 'Retirada').
- * Si el nuevo estado es 'Retirada', registra fecha_retiro y retirado_por automáticamente.
- */
-export async function cambiarEstadoQR(id: string, nuevoEstado: EstadoQR, retiradoPor?: string): Promise<EtiquetaQRRastreo> {
-  const cambios: EtiquetaQRRastreoUpdate = { estado: nuevoEstado };
-
-  if (nuevoEstado === 'Retirada') {
-    cambios.fecha_retiro = new Date().toISOString();
-    cambios.retirado_por = retiradoPor ?? null;
-  }
-  if (nuevoEstado === 'Colocada') {
-    cambios.fecha_colocacion = new Date().toISOString();
-    cambios.fecha_retiro = null;
-    cambios.retirado_por = null;
-  }
-
+/** Marca un QR como retirado, con la fecha y el usuario que lo retiró. */
+export async function retirarEtiquetaQR(id: string, retiradoPor: string): Promise<EtiquetaQRRastreo> {
+  const cambios: EtiquetaQRRastreoUpdate = {
+    estado: 'Retirada',
+    fecha_retiro: new Date().toISOString(),
+    retirado_por: retiradoPor,
+  };
   const { data, error } = await supabase.from('etiquetas_qr_rastreo').update(cambios).eq('id', id).select().single();
 
   if (error) {
-    console.error('[cambiarEstadoQR] Error:', error.message);
-    throw new Error(`No se pudo actualizar la etiqueta QR: ${error.message}`);
+    console.error('[retirarEtiquetaQR] Error:', error.message);
+    throw new Error(`No se pudo retirar el QR: ${error.message}`);
   }
   return data;
+}
+
+/** Borra el registro de un QR (p. ej. si se capturó por error). */
+export async function eliminarEtiquetaQR(id: string): Promise<void> {
+  const { error } = await supabase.from('etiquetas_qr_rastreo').delete().eq('id', id);
+
+  if (error) {
+    console.error('[eliminarEtiquetaQR] Error:', error.message);
+    throw new Error(`No se pudo eliminar el QR: ${error.message}`);
+  }
 }
 
 /** Mueve una etiqueta a otro taller / rack (lo usa el mapa del taller). */

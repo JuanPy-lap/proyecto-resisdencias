@@ -2,7 +2,7 @@ import type { FotografiaUnidad } from '@/types/supabase';
 
 /**
  * Descarga todas las fotos de una unidad en un ZIP organizado por etapa:
- *   ECO-402_expediente.zip / Ingreso / Frontal_01.jpg ...
+ *   C-2499_expediente.zip / Ingreso / Frontal_01.jpg ...
  * jszip y file-saver se importan dinámicamente para no cargarlos en cada página.
  */
 export async function descargarExpedienteZip(
