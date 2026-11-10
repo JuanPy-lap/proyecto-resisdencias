@@ -2,16 +2,31 @@
 
 import { useState } from 'react';
 import { Loader2, Truck, X } from 'lucide-react';
-import { createUnidad } from '@/services/api';
+import { actualizarUnidad, createUnidad } from '@/services/api';
 import { mensajeDeError } from '@/lib/hooks';
+import { hoyISO } from '@/lib/constantes';
 import type { Unidad, UnidadInsert } from '@/types/supabase';
 import { Campo, claseBotonAcento, claseBotonSecundario, claseInput } from '@/components/ui';
 
-const hoy = () => new Date().toISOString().slice(0, 10);
-
-/** Ventana modal para dar de alta una unidad en recepción. */
-export default function FormularioUnidad({ cerrar, alCrear }: { cerrar: () => void; alCrear: (u: Unidad) => void }) {
-  const [form, setForm] = useState<UnidadInsert>({ unidad_eco: '', fecha_ingreso: hoy() });
+/**
+ * Ventana modal para dar de alta una unidad en recepción o, con `unidad`,
+ * editar sus datos después (VIN, cliente, compromiso… que a veces llegan tarde).
+ */
+export default function FormularioUnidad({ unidad, cerrar, alGuardar }: { unidad?: Unidad; cerrar: () => void; alGuardar: (u: Unidad) => void }) {
+  const [form, setForm] = useState<UnidadInsert>(
+    unidad
+      ? {
+          unidad_eco: unidad.unidad_eco,
+          vin: unidad.vin,
+          modelo: unidad.modelo,
+          cliente_aseguradora: unidad.cliente_aseguradora,
+          tipo_golpe: unidad.tipo_golpe,
+          responsable_asignado: unidad.responsable_asignado,
+          fecha_ingreso: unidad.fecha_ingreso,
+          fecha_compromiso: unidad.fecha_compromiso,
+        }
+      : { unidad_eco: '', fecha_ingreso: hoyISO() }
+  );
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +39,8 @@ export default function FormularioUnidad({ cerrar, alCrear }: { cerrar: () => vo
     setGuardando(true);
     setError(null);
     try {
-      alCrear(await createUnidad({ ...form, vin: form.vin?.toUpperCase() ?? null }));
+      const datos = { ...form, unidad_eco: form.unidad_eco.trim().toUpperCase(), vin: form.vin?.toUpperCase() ?? null };
+      alGuardar(unidad ? await actualizarUnidad(unidad.id, datos) : await createUnidad(datos));
     } catch (err) {
       setError(mensajeDeError(err));
       setGuardando(false);
@@ -43,7 +59,7 @@ export default function FormularioUnidad({ cerrar, alCrear }: { cerrar: () => vo
             <span className="rounded-lg bg-amber-100 p-1.5 text-amber-700">
               <Truck className="h-5 w-5" />
             </span>
-            Registrar unidad
+            {unidad ? `Editar ${unidad.unidad_eco}` : 'Registrar unidad'}
           </h2>
           <button type="button" onClick={cerrar} aria-label="Cerrar" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
             <X className="h-5 w-5" />
@@ -85,7 +101,7 @@ export default function FormularioUnidad({ cerrar, alCrear }: { cerrar: () => vo
           </button>
           <button type="submit" disabled={guardando} className={claseBotonAcento}>
             {guardando && <Loader2 className="h-4 w-4 animate-spin" />}
-            Guardar unidad
+            {unidad ? 'Guardar cambios' : 'Guardar unidad'}
           </button>
         </div>
       </form>

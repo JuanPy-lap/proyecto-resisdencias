@@ -25,11 +25,12 @@ import { RESUMEN_VACIO, type ResumenUnidad } from '@/lib/fases';
 // UNIDADES
 // =============================================================================
 
-/** Lista todas las unidades, más recientes primero. */
+/** Lista las unidades del taller (sin las de pérdida total), más recientes primero. */
 export async function getUnidades(): Promise<Unidad[]> {
   const { data, error } = await supabase
     .from('unidades')
     .select('*')
+    .is('pt_fecha', null)
     .order('fecha_ingreso', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -82,9 +83,39 @@ export async function actualizarUnidad(id: string, cambios: UnidadUpdate): Promi
     console.error('[actualizarUnidad] Error:', error.message);
     // P0001 = raise exception del trigger de fases: su mensaje ya está en español.
     if (error.code === 'P0001') throw new Error(error.message);
+    if (error.code === '23505') throw new Error('Ya existe otra unidad con ese número de cono.');
     throw new Error(`No se pudo actualizar la unidad: ${error.message}`);
   }
   return data;
+}
+
+/** Unidades enviadas a pérdida total (PT), las más recientes primero. */
+export async function getUnidadesPT(): Promise<Unidad[]> {
+  const { data, error } = await supabase
+    .from('unidades')
+    .select('*')
+    .not('pt_fecha', 'is', null)
+    .order('pt_fecha', { ascending: false });
+
+  if (error) {
+    console.error('[getUnidadesPT] Error:', error.message);
+    throw new Error(`No se pudieron cargar las unidades en PT: ${error.message}`);
+  }
+  return data ?? [];
+}
+
+/** Manda la unidad a pérdida total: sale de "Unidades" pero conserva inventario y fotos. */
+export async function marcarPerdidaTotal(id: string, motivo: string | null, registradoPor: string): Promise<Unidad> {
+  return actualizarUnidad(id, {
+    pt_fecha: new Date().toISOString(),
+    pt_motivo: motivo,
+    pt_registrado_por: registradoPor,
+  });
+}
+
+/** Regresa una unidad de PT a "Unidades" (p. ej. si se marcó por error). */
+export async function restaurarUnidad(id: string): Promise<Unidad> {
+  return actualizarUnidad(id, { pt_fecha: null, pt_motivo: null, pt_registrado_por: null });
 }
 
 /**

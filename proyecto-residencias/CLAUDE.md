@@ -45,6 +45,9 @@ Reglas de negocio:
 - QR: un mismo cono puede tener varios QR (uno por taller); el índice único parcial solo impide repetir cono + taller mientras el QR siga sin retirar. Cada QR guarda `fecha_colocacion` y `fecha_retiro_programada` (por defecto, la fecha compromiso de la unidad). Para pasar a Entrega hay que retirar todos.
 - Fotos: las de Ingreso solo para unidades en Ingreso; Proceso para Proceso; Terminado para Proceso o Control de Calidad (`ETAPAS_FOTO[].fases`).
 - El mapa ubica las unidades por `taller` y `ubicacion_rack` de sus QR colocados.
+- Pérdida total (PT): una unidad en Ingreso o Espera de Liberación que no se libera se marca con `pt_fecha` (`marcarPerdidaTotal`). `getUnidades()` las excluye, así que desaparecen de listas, selectores y dashboard; se ven en `/unidades?vista=pt` y se pueden restaurar. No se borran (conservan inventario y fotos).
+
+Los datos de la unidad se editan después del alta con `FormularioUnidad` en modo edición (prop `unidad`). Desde el expediente, Inventario abre `/unidades/[id]/inventario` (la hoja guardada en solo lectura: `HojaInventario` con prop `guardado`) y Fotos abre `/unidades/[id]/fotos` (todas por etapa + ZIP).
 
 El flujo es guiado: el expediente (`/unidades/[id]`) enlaza a cada tarea con `?unidad=<id>` (`/inventario`, `/fotos?etapa=…`, `/qr-supervision`) y esas páginas regresan a `/unidades/[id]?hecho=…`. El inventario no está en el menú. `/camara` redirige a `/fotos` (next.config.ts). Las páginas que usan `useSearchParams` se envuelven en `<Suspense>` (el build lo exige).
 

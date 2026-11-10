@@ -43,6 +43,10 @@ export type Unidad = {
   fecha_compromiso: string | null; // ISO date
   responsable_asignado: string | null;
   estado_unidad: EstadoUnidad;
+  /** Pérdida total: si tiene fecha, la unidad está en el apartado PT. */
+  pt_fecha: string | null;
+  pt_motivo: string | null;
+  pt_registrado_por: string | null;
   created_at: string;
 };
 
@@ -57,6 +61,9 @@ export type UnidadInsert = {
   fecha_compromiso?: string | null;
   responsable_asignado?: string | null;
   estado_unidad?: EstadoUnidad;
+  pt_fecha?: string | null;
+  pt_motivo?: string | null;
+  pt_registrado_por?: string | null;
 };
 
 export type UnidadUpdate = Partial<UnidadInsert>;

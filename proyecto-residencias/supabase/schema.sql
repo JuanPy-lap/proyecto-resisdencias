@@ -2,7 +2,7 @@
 -- Esquema de la base de datos del Sistema NGR Taller (Supabase / Postgres).
 -- Instalación nueva: ejecútalo completo en Supabase → SQL Editor.
 -- Si ya habías corrido una versión anterior, ejecuta en su lugar
--- supabase/migraciones/002_fases_qr_inventario.sql.
+-- las migraciones de supabase/migraciones/ en orden (002, 003…).
 -- Es idempotente y debe mantenerse sincronizado con src/types/supabase.ts.
 -- =============================================================================
 
@@ -25,8 +25,14 @@ create table if not exists public.unidades (
   estado_unidad        text not null default 'Ingreso'
     constraint unidades_estado_unidad_check
     check (estado_unidad in ('Ingreso','Espera de Liberación','Proceso','Control de Calidad','Entrega')),
+  -- Pérdida total (PT): si pt_fecha tiene valor, la unidad sale de "Unidades"
+  -- y aparece en el apartado PT. No se borra (conserva inventario y fotos).
+  pt_fecha             timestamptz,
+  pt_motivo            text,
+  pt_registrado_por    text,
   created_at           timestamptz not null default now()
 );
+create index if not exists unidades_pt_idx on public.unidades(pt_fecha) where pt_fecha is not null;
 
 -- 2. historial_estados: cuándo y quién registró cada fase ----------------------
 create table if not exists public.historial_estados (

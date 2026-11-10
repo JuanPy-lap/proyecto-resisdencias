@@ -8,35 +8,51 @@ import { mensajeDeError, nombreUsuario, useAviso, useUsuario } from '@/lib/hooks
 import { NIVELES_COMBUSTIBLE, formatearFecha, hoyISO } from '@/lib/constantes';
 import { CAMPOS_ENCABEZADO, COLUMNAS_HOJA, ESTADOS_PARTE, ITEMS_HOJA, type GrupoHoja } from '@/lib/hojaInventario';
 import { descargarExcelInventario } from '@/lib/excelInventario';
-import type { DatosHoja, EstadoParte, ParteInventario, Unidad } from '@/types/supabase';
+import type { DatosHoja, EstadoParte, InventarioConDanos, ParteInventario, Unidad } from '@/types/supabase';
 import HojaDanos, { Medidor, type Marca } from '@/components/DiagramaCamion';
 import { Aviso, claseBotonAcento } from '@/components/ui';
 
 // Formulario con el formato de la hoja "INVENTARIO FÍSICO ESTADO UNIDAD" (Depto. Operativo RSAD).
 // Al guardar descarga el Excel con el mismo formato y regresa al expediente de la unidad.
+// Con `guardado` muestra ese inventario en la misma hoja, solo lectura, con botón de Excel.
 
 const claseCampo =
-  'w-full border-0 bg-transparent px-2 py-1.5 text-sm text-slate-900 placeholder:text-slate-300 focus:bg-amber-50 focus:outline-none';
+  'w-full border-0 bg-transparent px-2 py-1.5 text-sm text-slate-900 placeholder:text-slate-300 focus:bg-amber-50 focus:outline-none disabled:text-slate-900';
 const claseAmarillo = 'bg-[#F6C143] px-2 py-1 text-center text-[11px] font-bold uppercase text-slate-900';
 
-export default function HojaInventario({ unidad }: { unidad: Unidad }) {
+export default function HojaInventario({ unidad, guardado }: { unidad: Unidad; guardado?: InventarioConDanos }) {
   const router = useRouter();
   const usuario = useUsuario();
   const aviso = useAviso();
+  const soloLectura = !!guardado;
 
-  const [datos, setDatos] = useState<DatosHoja>({
-    cliente: unidad.cliente_aseguradora ?? '',
-    modelo: unidad.modelo ?? '',
-    numero_serie: unidad.vin ?? '',
-  });
-  const [kilometraje, setKilometraje] = useState('');
-  const [checklist, setChecklist] = useState<Record<string, ParteInventario>>({});
-  const [marcas, setMarcas] = useState<Marca[]>([]);
-  const [combustibleLH, setCombustibleLH] = useState(50);
-  const [combustibleRH, setCombustibleRH] = useState(50);
-  const [observaciones, setObservaciones] = useState('');
-  const [supervisor, setSupervisor] = useState('');
+  const [datos, setDatos] = useState<DatosHoja>(
+    guardado?.datos_hoja ?? {
+      cliente: unidad.cliente_aseguradora ?? '',
+      modelo: unidad.modelo ?? '',
+      numero_serie: unidad.vin ?? '',
+    }
+  );
+  const [kilometraje, setKilometraje] = useState(guardado ? guardado.kilometraje.toLocaleString('es-MX') : '');
+  const [checklist, setChecklist] = useState<Record<string, ParteInventario>>(guardado?.checklist ?? {});
+  const [marcas, setMarcas] = useState<Marca[]>(guardado?.danos_diagrama ?? []);
+  const [combustibleLH, setCombustibleLH] = useState(guardado?.nivel_combustible ?? 50);
+  const [combustibleRH, setCombustibleRH] = useState(guardado?.nivel_combustible_rh ?? 50);
+  const [observaciones, setObservaciones] = useState(guardado?.observaciones ?? '');
+  const [supervisor, setSupervisor] = useState(guardado?.supervisor ?? '');
   const [guardando, setGuardando] = useState(false);
+
+  const descargarExcel = async () => {
+    if (!guardado) return;
+    setGuardando(true);
+    try {
+      await descargarExcelInventario(unidad, guardado, guardado.danos_diagrama);
+    } catch (err) {
+      aviso.error(mensajeDeError(err));
+    } finally {
+      setGuardando(false);
+    }
+  };
 
   const campo = (clave: keyof DatosHoja) => ({
     value: datos[clave] ?? '',
@@ -169,14 +185,15 @@ export default function HojaInventario({ unidad }: { unidad: Unidad }) {
 
   return (
     <form onSubmit={guardar} className="space-y-4">
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-400">
+      {/* En solo lectura el fieldset deshabilita todos los campos y botones de la hoja. */}
+      <fieldset disabled={soloLectura} className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-400">
         {/* Encabezado */}
         <div className="grid border-b border-slate-400 sm:grid-cols-[1.2fr_1.2fr_1fr]">
           <div className="grid place-items-center bg-[#F6C143] px-3 py-3 text-center text-base font-black text-slate-900 sm:text-lg">DEPARTAMENTO OPERATIVO RSAD</div>
           <div className="grid place-items-center border-slate-400 px-3 py-3 text-center text-sm font-bold text-slate-800 sm:border-x">INVENTARIO FÍSICO ESTADO UNIDAD</div>
           <div className="space-y-0.5 px-3 py-2 text-xs text-slate-600">
-            <p>Elaboró Aux. Operativo: <strong className="text-slate-900">{nombreUsuario(usuario)}</strong></p>
-            <p>Fecha: <strong className="text-slate-900">{formatearFecha(hoyISO())}</strong></p>
+            <p>Elaboró Aux. Operativo: <strong className="text-slate-900">{guardado?.capturado_por ?? nombreUsuario(usuario)}</strong></p>
+            <p>Fecha: <strong className="text-slate-900">{formatearFecha(guardado?.created_at ?? hoyISO())}</strong></p>
           </div>
         </div>
         <div className="grid border-b border-slate-300 sm:grid-cols-[1fr_2fr]">
@@ -227,7 +244,7 @@ export default function HojaInventario({ unidad }: { unidad: Unidad }) {
           <p className="text-xs text-slate-500">
             B = Bueno · R = Regular · M = Malo · <span className="font-semibold">{pendientes.length} sin marcar</span>
           </p>
-          {pendientes.length > 0 && (
+          {pendientes.length > 0 && !soloLectura && (
             <button type="button" onClick={marcarRestoBueno} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500">
               <CheckCheck className="h-4 w-4" /> Marcar el resto en B
             </button>
@@ -246,15 +263,15 @@ export default function HojaInventario({ unidad }: { unidad: Unidad }) {
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="text-xs font-bold uppercase text-slate-700">
-                Golpes · toca el dibujo donde está el golpe <span className="text-red-600">({marcas.length})</span>
+                Golpes{soloLectura ? '' : ' · toca el dibujo donde está el golpe'} <span className="text-red-600">({marcas.length})</span>
               </p>
-              {marcas.length > 0 && (
+              {marcas.length > 0 && !soloLectura && (
                 <button type="button" onClick={() => setMarcas([])} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-red-600">
                   <Eraser className="h-3.5 w-3.5" /> Borrar marcas
                 </button>
               )}
             </div>
-            <HojaDanos marcas={marcas} alCambiar={setMarcas} />
+            <HojaDanos marcas={marcas} alCambiar={soloLectura ? undefined : setMarcas} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 xl:content-start">
             {selectorCombustible('LH', combustibleLH, setCombustibleLH)}
@@ -266,12 +283,19 @@ export default function HojaInventario({ unidad }: { unidad: Unidad }) {
           <span className="text-sm font-bold text-slate-700">Supervisor:</span>
           <input value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className={`${claseCampo} border-b border-slate-400`} />
         </label>
-      </div>
+      </fieldset>
 
-      <button type="submit" disabled={guardando} className={`${claseBotonAcento} w-full py-3.5 text-base`}>
-        {guardando ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSpreadsheet className="h-5 w-5" />}
-        {guardando ? 'Guardando…' : 'Guardar inventario y descargar Excel'}
-      </button>
+      {soloLectura ? (
+        <button type="button" onClick={descargarExcel} disabled={guardando} className={`${claseBotonAcento} w-full py-3.5 text-base`}>
+          {guardando ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSpreadsheet className="h-5 w-5" />}
+          Descargar Excel
+        </button>
+      ) : (
+        <button type="submit" disabled={guardando} className={`${claseBotonAcento} w-full py-3.5 text-base`}>
+          {guardando ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSpreadsheet className="h-5 w-5" />}
+          {guardando ? 'Guardando…' : 'Guardar inventario y descargar Excel'}
+        </button>
+      )}
       <Aviso aviso={aviso.aviso} cerrar={aviso.cerrar} />
     </form>
   );
