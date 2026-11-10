@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, Loader2, Package
 import { crearEtiquetaQR, eliminarEtiquetaQR, getEtiquetasQR, getUnidades, retirarEtiquetaQR } from '@/services/api';
 import { mensajeDeError, nombreUsuario, useAviso, useDatos, useUsuario } from '@/lib/hooks';
 import { ESTADOS_QR, ESTADOS_SALIDA, TALLERES, formatearFecha, hoyISO, situacionRetiro } from '@/lib/constantes';
+import { AREAS_PLANO, ZONAS_PLANO, nombreUbicacion } from '@/lib/plano';
 import type { EtiquetaQRConUnidad } from '@/types/supabase';
 import SelectorUnidad from '@/components/SelectorUnidad';
 import { Aviso, AvisoConfiguracion, Campo, Cargando, Encabezado, ErrorCarga, Estadistica, Insignia, Pagina, Tarjeta, Vacio, claseBotonAcento, claseInput } from '@/components/ui';
@@ -91,6 +92,7 @@ function ModuloQR() {
     e.preventDefault();
     if (!unidad) return aviso.error('Selecciona la unidad.');
     if (!codigoFinal.trim()) return aviso.error('Escribe o escanea el número de cono del QR.');
+    if (!rack) return aviso.error('Indica en qué taller quedó la unidad.');
     if (!retiroFinal) return aviso.error('Indica la fecha en que se debe retirar el QR.');
     if (retiroFinal < fechaColocacion) return aviso.error('La fecha de retiro no puede ser antes de la de colocación.');
 
@@ -100,7 +102,7 @@ function ModuloQR() {
         unidad_id: unidad.id,
         codigo_qr: codigoFinal,
         taller,
-        ubicacion_rack: rack.trim().toUpperCase() || null,
+        ubicacion_rack: rack || null,
         // Mediodía local para que la fecha elegida no se recorra por zona horaria.
         fecha_colocacion: new Date(`${fechaColocacion}T12:00:00`).toISOString(),
         fecha_retiro_programada: retiroFinal,
@@ -158,7 +160,7 @@ function ModuloQR() {
       {etiquetas.error && <ErrorCarga mensaje={etiquetas.error} reintentar={etiquetas.recargar} />}
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Estadistica etiqueta="Colocadas" valor={colocadas.length} detalle="QR puestos en racks" icono={ScanLine} tono="amber" />
+        <Estadistica etiqueta="Colocadas" valor={colocadas.length} detalle="QR puestos en talleres" icono={ScanLine} tono="amber" />
         <Estadistica etiqueta="Retirar hoy" valor={colocadas.filter((q) => situacionRetiro(q)?.tipo === 'hoy').length} detalle="Según fecha programada" icono={CalendarClock} tono="sky" />
         <Estadistica etiqueta="Retiro vencido" valor={colocadas.filter((q) => situacionRetiro(q)?.tipo === 'vencido').length} detalle="Ya pasó su fecha" icono={AlertTriangle} tono={urgentes.length ? 'red' : 'emerald'} />
         <Estadistica etiqueta="Retiradas" valor={lista.filter((q) => q.estado === 'Retirada').length} detalle="Ciclo completo" icono={PackageCheck} tono="emerald" />
@@ -174,14 +176,27 @@ function ModuloQR() {
               <Campo etiqueta="No. de cono *">
                 <input value={codigoFinal} onChange={(e) => setCodigo(e.target.value)} placeholder="C-2499" className={`${claseInput} font-mono uppercase`} />
               </Campo>
-              <Campo etiqueta="Taller *">
+              <Campo etiqueta="Especialidad *">
                 <select value={taller} onChange={(e) => setTaller(e.target.value)} className={claseInput}>
                   {TALLERES.map((t) => <option key={t.nombre}>{t.nombre}</option>)}
                 </select>
               </Campo>
             </div>
-            <Campo etiqueta="Rack / ubicación">
-              <input value={rack} onChange={(e) => setRack(e.target.value)} placeholder="A1" className={`${claseInput} uppercase`} />
+            <Campo etiqueta="¿En qué taller quedó? *" ayuda="Así la unidad aparece en el mapa del taller.">
+              <select required value={rack} onChange={(e) => setRack(e.target.value)} className={claseInput}>
+                <option value="" disabled>
+                  Selecciona el taller…
+                </option>
+                {ZONAS_PLANO.map((zona) => (
+                  <optgroup key={zona} label={zona}>
+                    {AREAS_PLANO.filter((a) => a.zona === zona).map((a) => (
+                      <option key={a.id} value={a.nombre.toUpperCase()}>
+                        {a.nombre}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </Campo>
             <div className="grid grid-cols-2 gap-3">
               <Campo etiqueta="Se colocó el *">
@@ -212,7 +227,7 @@ function ModuloQR() {
                 <AlertTriangle className="h-5 w-5" /> {urgentes.length} QR por retirar ya
               </p>
               <p className="mt-1 text-sm text-red-100">
-                {urgentes.slice(0, 6).map((q) => `${q.codigo_qr} (${q.taller}${q.ubicacion_rack ? ` / ${q.ubicacion_rack}` : ''})`).join(' · ')}
+                {urgentes.slice(0, 6).map((q) => `${q.codigo_qr} (${q.taller}${q.ubicacion_rack ? ` / ${nombreUbicacion(q.ubicacion_rack)}` : ''})`).join(' · ')}
                 {urgentes.length > 6 ? ' …' : ''}
               </p>
             </div>
@@ -258,7 +273,7 @@ function ModuloQR() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono font-bold text-slate-900">{q.codigo_qr}</span>
                           <span className="rounded-md bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">{q.taller}</span>
-                          {q.ubicacion_rack && <span className="text-xs font-semibold text-slate-500">Rack {q.ubicacion_rack}</span>}
+                          {q.ubicacion_rack && <span className="text-xs font-semibold text-slate-500">📍 {nombreUbicacion(q.ubicacion_rack)}</span>}
                           {q.estado === 'Retirada' ? (
                             <Insignia clase={ESTADOS_QR.find((e) => e.valor === 'Retirada')!.clase}>Retirada</Insignia>
                           ) : salida ? (

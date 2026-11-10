@@ -36,6 +36,7 @@ import { ESTADOS_UNIDAD, claseEstadoUnidad, formatearFecha, indiceEstado, siguie
 import { pendientesParaAvanzar, resumir, tareasDeFase } from '@/lib/fases';
 import type { EstadoUnidad, Unidad } from '@/types/supabase';
 import FormularioUnidad from '@/components/FormularioUnidad';
+import { nombreUbicacion } from '@/lib/plano';
 import { Aviso, AvisoConfiguracion, Cargando, ErrorCarga, Insignia, Pagina, Tarjeta, Vacio, claseBotonAcento, claseBotonSecundario } from '@/components/ui';
 
 const MENSAJES_HECHO: Record<string, string> = {
@@ -359,7 +360,7 @@ function Expediente() {
                       {q.estado === 'Retirada' ? <Insignia clase="bg-emerald-50 text-emerald-700 ring-emerald-200">Retirada</Insignia> : s && <Insignia clase={s.clase}>{s.texto}</Insignia>}
                     </div>
                     <p className="text-xs text-slate-500">
-                      {q.ubicacion_rack ? `Rack ${q.ubicacion_rack} · ` : ''}colocado {formatearFecha(q.fecha_colocacion)} · {q.estado === 'Retirada' ? `retirado ${formatearFecha(q.fecha_retiro)}` : `retirar ${formatearFecha(q.fecha_retiro_programada)}`}
+                      {q.ubicacion_rack ? `${nombreUbicacion(q.ubicacion_rack)} · ` : ''}colocado {formatearFecha(q.fecha_colocacion)} · {q.estado === 'Retirada' ? `retirado ${formatearFecha(q.fecha_retiro)}` : `retirar ${formatearFecha(q.fecha_retiro_programada)}`}
                     </p>
                   </li>
                 );
